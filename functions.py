@@ -1,23 +1,44 @@
 import numpy as np
 import matplotlib.pyplot as py
 import pandas as pd
+import constant
+
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.model_selection import cross_val_score
 
 def read_dataset(ds_path):
     df = pd.read_csv(ds_path)
     return df
 
 def prune_dataset(df):
-    duplicates = df.duplicated(subset=['context'])
     grouped = df.groupby(df.context)
-    context_0 = grouped.get_group(0)
-    print(context_0)
     descr = df.describe()
     max_context = descr['context']['max']
     i = 0
-    while i < max_context:
+    final_df = pd.DataFrame(columns=constant.COLUMNS)
+    while i <= max_context:
         contexts = grouped.get_group(i)
-        print(contexts)
+        best_alpha_df = contexts[contexts.alpha == contexts.alpha.min()]
+        best_ab_df = best_alpha_df[best_alpha_df.beta == best_alpha_df.beta.max()]
+        best_conf = best_ab_df.head(1)
+        best_conf.drop(columns='context')
+        final_df = pd.concat([final_df, best_conf], ignore_index=True)
         i += 1
 
+    print('Dataset pruned!')
+
+    return final_df
+
+def save_pruned(df_to_save):
+    df_to_save.to_csv('results/pruned_results.csv', mode='a', columns=constant.COLUMNS_PRUNED, index=False, header=False)
+
+def train_model(pruned_df_path):
+    pruned_df = read_dataset(pruned_df_path)
+    y = pruned_df['bin_conf']
+    y = y.astype('int')
+    x = pruned_df.drop(columns=['n_vnf','n_vcpu','alpha','beta','bin_conf'])
+    clf = DecisionTreeClassifier(random_state=0)
+    results = cross_val_score(clf, x, y, cv=2, scoring='accuracy')
+    print("Accuracy: "+str(results.mean()))
 
 

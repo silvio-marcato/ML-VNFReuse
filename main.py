@@ -4,4 +4,8 @@ import constant
 
 df = f.read_dataset(constant.PATH)
 
-f.prune_dataset(df)
+pruned_df = f.prune_dataset(df)
+f.save_pruned(pruned_df)
+
+
+f.train_model(constant.PRUNED_PATH)
