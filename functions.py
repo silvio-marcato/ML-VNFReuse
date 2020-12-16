@@ -18,8 +18,8 @@ def prune_dataset(df):
     final_df = pd.DataFrame(columns=constant.COLUMNS)
     while i <= max_context:
         contexts = grouped.get_group(i)
-        best_alpha_df = contexts[contexts.alpha == contexts.alpha.min()]
-        best_ab_df = best_alpha_df[best_alpha_df.beta == best_alpha_df.beta.max()]
+        best_beta_df = contexts[contexts.beta == contexts.beta.min()]
+        best_ab_df = best_beta_df[best_beta_df.alpha == best_beta_df.alpha.min()]
         best_conf = best_ab_df.head(1)
         best_conf.drop(columns='context')
         final_df = pd.concat([final_df, best_conf], ignore_index=True)
@@ -30,10 +30,11 @@ def prune_dataset(df):
     return final_df
 
 def save_pruned(df_to_save):
-    df_to_save.to_csv('results/pruned_results.csv', mode='a', columns=constant.COLUMNS_PRUNED, index=False, header=False)
+    df_to_save.to_csv('results/pruned_results.csv', mode='a', columns=constant.COLUMNS_PRUNED, index=False, header=True)
 
 def train_model(pruned_df_path):
     pruned_df = read_dataset(pruned_df_path)
+    pruned_df.describe()
     y = pruned_df['bin_conf']
     y = y.astype('int')
     x = pruned_df.drop(columns=['n_vnf','n_vcpu','alpha','beta','bin_conf'])
