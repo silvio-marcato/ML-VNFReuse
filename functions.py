@@ -8,8 +8,10 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC, LinearSVC
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.model_selection import cross_val_score, GridSearchCV
+from sklearn.model_selection import cross_val_score, GridSearchCV, train_test_split
 from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import classification_report
+from sklearn.metrics import accuracy_score
 
 def read_dataset(ds_path):
     df = pd.read_csv(ds_path)
@@ -36,18 +38,24 @@ def prune_dataset(df):
     return final_df
 
 def save_pruned(df_to_save, header=False):
-    df_to_save.to_csv('results/pruned/pruned_results.csv', mode='a', columns=constant.COLUMNS_PRUNED, index=False, header=header)
+    df_to_save.to_csv(constant.PRUNED_PATH, mode='a', columns=constant.COLUMNS_PRUNED, index=False, header=header)
 
 def train_model(pruned_df_path):
     pruned_df = read_dataset(pruned_df_path)
-    pruned_df.describe()
 
-    y = pruned_df['bin_conf'].values
-    x = pruned_df.drop(columns=['rate','n_instances','n_instances_CA','n_instances_ST','n_instances_VS','n_vnf','n_vcpu','n_vnf','alpha','beta','bin_conf'])
+
+
+    y_train = pruned_df['bin_conf'].values
+    x_train = pruned_df.drop(columns=['rate','n_requests','n_requests_CA','n_requests_ST','n_requests_VS','n_vnf_req','n_vcpu','n_vnf','alpha','beta','bin_conf'])
+    #x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.33, random_state=42)
+
+    test_df = read_dataset(constant.PRUNED_PATH_TEST)
+    x_test = test_df.drop(columns=['rate','n_requests','n_requests_CA','n_requests_ST','n_requests_VS','n_vnf_req','n_vcpu','n_vnf','alpha','beta','bin_conf'])
+    y_test = test_df['bin_conf'].values
     #x = pruned_df.drop(columns=['rate','bin_conf'])
 
     scaler = StandardScaler()
-    x_normalize = scaler.fit_transform(x)
+    x_normalize = scaler.fit_transform(x_train)
 
     svc_parameters = {'kernel': ['rbf'], 'gamma': [1e-3, 1e-4],
                      'C': [1, 10, 100, 1000]}
@@ -60,27 +68,60 @@ def train_model(pruned_df_path):
     
     knn_parameters = {'n_neighbors': range (1,10),
                       'weights': ['uniform', 'distance']}
-    
-    clf = GridSearchCV(DecisionTreeClassifier(random_state=0), tree_parameters, scoring='accuracy')
-    results = cross_val_score(clf, x_normalize, y, cv=5, scoring='accuracy')
-    print("Accuracy Decision Tree: "+str(results.mean()))
 
-    clf2 = GridSearchCV(SVC(), svc_parameters, scoring='accuracy')
-    results2 = cross_val_score(clf2, x_normalize, y, cv=5, scoring ='accuracy')
-    print("Accuracy SVC: "+str(results2.mean()))
+    n_estimators = [100, 300, 500, 800, 1200]
+    max_depth = [5, 8, 15, 25, 30]
+    min_samples_split = [2, 5, 10, 15, 100]
+    min_samples_leaf = [1, 2, 5, 10] 
+
+    hyperF = dict(n_estimators = n_estimators, max_depth = max_depth,  
+              min_samples_split = min_samples_split, 
+             min_samples_leaf = min_samples_leaf)
+    
 
     clf3 = LinearSVC(random_state=0)
-    results3 = cross_val_score(clf3, x_normalize, y, cv=5, scoring='accuracy')
+    results3 = cross_val_score(clf3, x_normalize, y_train, cv=20, scoring='accuracy')
     print("Accuracy Linear SVC: "+str(results3.mean()))
+    clf3.fit(x_train, y_train)
+    y_pred = clf3.predict(x_test)
+    print('Test accuracy: '+str(accuracy_score(y_test,y_pred)))
 
-    
-    clf4 = GridSearchCV(KNeighborsClassifier(), knn_parameters, scoring='accuracy')
-    results4 = cross_val_score(clf4, x_normalize, y, cv=5, scoring = 'accuracy')
-    print("Accuracy KNN: "+str(results4.mean()))
-
-    clf5 = RandomForestClassifier(random_state=0)
-    results5 = cross_val_score(clf5, x_normalize, y, cv=5, scoring='accuracy')
+    clf5 = GridSearchCV(RandomForestClassifier(random_state=0), hyperF, scoring='accuracy')
+    #clf5 = RandomForestClassifier(random_state=0)
+    results5 = cross_val_score(clf5, x_normalize, y_train, cv=10, scoring='accuracy')
     print("Accuracy Random Forest: "+str(results5.mean()))
+    clf5.fit(x_train, y_train)
+    y_pred = clf5.predict(x_test)
+    print('Test accuracy: '+str(accuracy_score(y_test,y_pred)))
+
+    clf = GridSearchCV(DecisionTreeClassifier(random_state=0), tree_parameters, cv=10, scoring='accuracy')
+    results = cross_val_score(clf, x_normalize, y_train, cv=10, scoring='accuracy')
+    print("Accuracy Decision Tree: "+str(results.mean()))
+    clf.fit(x_train, y_train)
+    y_pred = clf.predict(x_test)
+    print('Test accuracy: '+str(accuracy_score(y_test,y_pred)))
+
+    clf2 = GridSearchCV(SVC(), svc_parameters, cv=10, scoring='accuracy')
+    results2 = cross_val_score(clf2, x_normalize, y_train, cv=10, scoring ='accuracy')
+    print("Accuracy SVC: "+str(results2.mean()))
+    clf2.fit(x_train, y_train)
+    y_pred = clf2.predict(x_test)
+    print('Test accuracy: '+str(accuracy_score(y_test,y_pred)))
+
+    clf4 = GridSearchCV(KNeighborsClassifier(), knn_parameters, cv=10, scoring='accuracy')
+    results4 = cross_val_score(clf4, x_normalize, y_train, cv=10, scoring = 'accuracy')
+    print("Accuracy KNN: "+str(results4.mean()))
+    clf4.fit(x_train, y_train)
+    y_pred = clf4.predict(x_test)
+    print('Test accuracy: '+str(accuracy_score(y_test,y_pred)))
+
+
+def test_model(clf, x_train, y_train, x_test, y_test):
+    clf.fit(x_train, y_train)
+    y_pred = clf.predict(x_test)
+    # target_names = ['1','2','3','4']
+    # print(classification_report(y_test, y_pred, target_names=target_names))
+    print('Test accuracy: '+str(accuracy_score(y_test,y_pred)))
 
 def count_bins(pruned_df_path):
     pruned_df = read_dataset(pruned_df_path)
