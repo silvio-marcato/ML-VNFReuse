@@ -1,8 +1,9 @@
 import functions as f
 import os
 import constant
+import joblib
 
-#f.merge_results()
+# f.merge_results()
 
 # df = f.read_dataset(constant.CURR_PATH)
 # pruned_df = f.prune_dataset(df)
@@ -11,4 +12,7 @@ import constant
 
 f.train_model(constant.PRUNED_PATH)
 
-# f.count_bins(constant.PRUNED_PATH)
+
+#f.count_bins(constant.PRUNED_PATH)
+# rf = joblib.load('rf_mod-e.sav')
+# print(rf.best_params_)
