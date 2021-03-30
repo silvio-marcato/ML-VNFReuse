@@ -10,7 +10,7 @@ from imblearn.over_sampling import RandomOverSampler
 
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.svm import SVC, LinearSVC
+from sklearn.svm import SVC
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import cross_val_score, GridSearchCV, train_test_split
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
@@ -44,118 +44,80 @@ def save_pruned(df_to_save, header=False):
     df_to_save.to_csv(constant.PRUNED_PATH_TEST, mode='a', columns=constant.COLUMNS_PRUNED, index=False, header=header)
 
 def train_model(pruned_df_path):
-    pruned_df = read_dataset(pruned_df_path)
 
+    #Read train set and apply rounding to average number of instances (we work with integers)
+    pruned_df = read_dataset(pruned_df_path)    
+    x_train = pruned_df[constant.TRAIN_COLUMNS]
+    y_train = pruned_df[constant.CLASS_LABEL].values
 
-
-    y_train = pruned_df['bin_conf'].values
-    x_train = pruned_df.drop(columns=['rate','n_requests','n_requests_CA','n_requests_ST','n_requests_VS','n_instances','n_vnf_req','n_vcpu','n_vnf','alpha','beta','bin_conf'])
-    x_train['n_instances_CA'] = x_train['n_instances_CA'].apply(np.around)
-    x_train['n_instances_ST'] = x_train['n_instances_ST'].apply(np.around)
-    x_train['n_instances_VS'] = x_train['n_instances_VS'].apply(np.around)
-
-    #x_train, x_test, y_train, y_test = train_test_split(x_train, y_train, test_size=0.33, random_state=42)
+    for n_inst in x_train:
+        x_train[n_inst] = x_train[n_inst].apply(np.around)
     
+    #Read test set and apply rounding
+    test_df = read_dataset(constant.PRUNED_PATH_TEST)
+    x_test = test_df[constant.TRAIN_COLUMNS]
+    y_test = test_df[constant.CLASS_LABEL].values
+
+    for n_inst in x_test:
+        x_test[n_inst] = x_test[n_inst].apply(np.around)
+    
+    #Oversampling
     oversample = RandomOverSampler(sampling_strategy='minority')
     x_train, y_train = oversample.fit_resample(x_train, y_train)
-    # undersample = RandomUnderSampler(sampling_strategy='majority')
-    # x_train, y_train = undersample.fit_resample(x_train, y_train)
 
-
-
-    test_df = read_dataset(constant.PRUNED_PATH_TEST)
-    x_test = test_df.drop(columns=['rate','n_requests','n_requests_CA','n_requests_ST','n_requests_VS','n_instances','n_vnf_req','n_vcpu','n_vnf','alpha','beta','bin_conf'])
-    y_test = test_df['bin_conf'].values
-    x_test['n_instances_CA'] = x_test['n_instances_CA'].apply(np.around)
-    x_test['n_instances_ST'] = x_test['n_instances_ST'].apply(np.around)
-    x_test['n_instances_VS'] = x_test['n_instances_VS'].apply(np.around)
-    #x = pruned_df.drop(columns=['rate','bin_conf'])
-
+    #Normalizing
     scaler = StandardScaler()
     x_normalize = scaler.fit_transform(x_train)
     x_normalize_test = scaler.transform(x_test) #not fit because we fit on the training
     # x_normalize = x_train
     # x_normalize_test = x_test
+ 
 
-    # svc_parameters = {'kernel': ['rbf'], 'gamma': [1e-3, 1e-4, 1e-5],
-    #                  'C': [1, 10, 100, 1000]}
-
-    svc_parameters = {'kernel': ['rbf'], 'gamma': [1e-3, 1e-4, 1e-5],
-                     'C': [1,10,100,1000]}
-    
-    linear_svc_parameters = {'C': [1, 10, 100, 1000]}
-
-    tree_parameters = {'criterion': ['entropy','gini'], 
-                       'max_depth': range(1,10), 
-                       'min_samples_split': range(2,10), 
-                       'min_samples_leaf': range(1,5) 
-                       }
-
-
-    knn_parameters = {'n_neighbors': range (1,10),
-                      'weights': ['uniform', 'distance']}
-
-    n_estimators = [100,200,300]
-    max_depth = range(1,10)
-    min_samples_split = range(2,10)
-    min_samples_leaf = range(1,5) 
-
-    hyperF = dict(n_estimators = n_estimators, max_depth = max_depth,  
-              min_samples_split = min_samples_split, 
-             min_samples_leaf = min_samples_leaf)
-
-    # clf3 = GridSearchCV(LinearSVC(random_state=0, max_iter=100000), linear_svc_parameters, cv=10, scoring='accuracy', n_jobs=-1)
-    # results3 = cross_val_score(clf3, x_normalize, y_train, cv=20, scoring='accuracy')
-    # print("Accuracy Linear SVC: "+str(results3.mean()))
-    # clf3.fit(x_normalize, y_train)
-    # y_pred = clf3.predict(x_normalize_test)
-    # print('Test accuracy: '+str(accuracy_score(y_test,y_pred)))
-
-    #clf5 = GridSearchCV(RandomForestClassifier(random_state=0), hyperF, cv=10, scoring='accuracy', n_jobs=-1)
-    clf5 = RandomForestClassifier(random_state=0, n_estimators=200, max_depth=9, min_samples_split=2, min_samples_leaf=1, n_jobs=-1)
-    #results5 = cross_val_score(clf5, x_normalize, y_train, cv=10, scoring='accuracy')
-    #print("Accuracy Random Forest: "+str(results5.mean()))
+    clf5 = GridSearchCV(RandomForestClassifier(random_state=0), hyperF, cv=10, scoring='accuracy', n_jobs=-1)
+    #clf5 = RandomForestClassifier(random_state=0, n_estimators=200, max_depth=9, min_samples_split=2, min_samples_leaf=1, n_jobs=-1)
+    results5 = cross_val_score(clf5, x_normalize, y_train, cv=10, scoring='accuracy')
+    print("Accuracy Random Forest: "+str(results5.mean()))
     clf5.fit(x_normalize, y_train)
     y_pred = clf5.predict(x_normalize_test)
     print('Test accuracy: '+str(accuracy_score(y_test,y_pred)))
     filename5 = 'rf_mode.sav'
     joblib.dump(clf5, filename5)
-    #print(clf5.best_params_)
+    print(clf5.best_params_)
 
-    #clf = GridSearchCV(DecisionTreeClassifier(random_state=0), tree_parameters, cv=10, scoring='accuracy', n_jobs=-1)
-    clf = DecisionTreeClassifier(random_state=0, criterion='entropy', max_depth=5, min_samples_split=2, min_samples_leaf=1)
-    #results = cross_val_score(clf, x_normalize, y_train, cv=10, scoring='accuracy')
-    #print("Accuracy Decision Tree: "+str(results.mean()))
+    clf = GridSearchCV(DecisionTreeClassifier(random_state=0), tree_parameters, cv=10, scoring='accuracy', n_jobs=-1)
+    #clf = DecisionTreeClassifier(random_state=0, criterion='entropy', max_depth=5, min_samples_split=2, min_samples_leaf=1)
+    results = cross_val_score(clf, x_normalize, y_train, cv=10, scoring='accuracy')
+    print("Accuracy Decision Tree: "+str(results.mean()))
     clf.fit(x_normalize, y_train)
     y_pred = clf.predict(x_normalize_test)
     print('Test accuracy: '+str(accuracy_score(y_test,y_pred)))
     filename = 'tree_mode.sav'
     joblib.dump(clf, filename)
-    #print(clf.best_params_)
-    plots.my_plot_tree(clf)
+    print(clf.best_params_)
+    #plots.my_plot_tree(clf)
 
-    #clf2 = GridSearchCV(SVC(random_state=0), svc_parameters, cv=10, scoring='accuracy', n_jobs=-1)
-    clf2 = SVC(random_state=0, C=100, gamma=0.001)
-    #results2 = cross_val_score(clf2, x_normalize, y_train, cv=10, scoring ='accuracy')
-    #print("Accuracy SVC: "+str(results2.mean()))
+    clf2 = GridSearchCV(SVC(random_state=0), svc_parameters, cv=10, scoring='accuracy', n_jobs=-1)
+    #clf2 = SVC(random_state=0, C=100, gamma=0.001)
+    results2 = cross_val_score(clf2, x_normalize, y_train, cv=10, scoring ='accuracy')
+    print("Accuracy SVC: "+str(results2.mean()))
     clf2.fit(x_normalize, y_train)
     y_pred = clf2.predict(x_normalize_test)
     print('Test accuracy: '+str(accuracy_score(y_test,y_pred)))
     filename2 = 'svc_mode.sav'
     joblib.dump(clf2, filename2)
-    #print(clf2.best_params_)
+    print(clf2.best_params_)
 
-    #clf4 = GridSearchCV(KNeighborsClassifier(), knn_parameters, cv=10, scoring='accuracy', n_jobs=-1)
-    clf4 = KNeighborsClassifier(n_neighbors=3, weights='distance', n_jobs=-1)
-    #results4 = cross_val_score(clf4, x_normalize, y_train, cv=10, scoring = 'accuracy')
-    #print("Accuracy KNN: "+str(results4.mean()))
+    clf4 = GridSearchCV(KNeighborsClassifier(), knn_parameters, cv=10, scoring='accuracy', n_jobs=-1)
+    #clf4 = KNeighborsClassifier(n_neighbors=3, weights='distance', n_jobs=-1)
+    results4 = cross_val_score(clf4, x_normalize, y_train, cv=10, scoring = 'accuracy')
+    print("Accuracy KNN: "+str(results4.mean()))
     clf4.fit(x_normalize, y_train)
     y_pred = clf4.predict(x_normalize_test)
     print('Test accuracy: '+str(accuracy_score(y_test,y_pred)))
     filename3 = 'knn_mode.sav'
     joblib.dump(clf4, filename3)
-    #print(clf4.best_params_)
-    plots.plot_clf(clf4, 'K-Nearest Neighbors Classifier', x_normalize, y_train)
+    print(clf4.best_params_)
+    #plots.plot_clf(clf4, 'K-Nearest Neighbors Classifier', x_normalize, y_train)
 
 
 
@@ -178,6 +140,14 @@ def count_bins(pruned_df_path):
         print(str(i)+' '+str(occ)+' '+str(perc))
     print(occurrences)
     print(tot)
+    explode = (0, 0, 0, 0)
+    colors = ['#ff9999','#66b3ff','#99ff99','#ffcc99']
+    fig1, ax1 = plt.subplots()
+    labels = ['Conf. 0', 'Conf. 1', 'Conf. 2', 'Conf. 3']
+    ax1.pie(list(occurrences.values()), explode=explode, labels=labels, autopct='%1.1f%%', colors=colors,
+        shadow=True, startangle=90)
+    ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+    plt.show()
 
 def merge_results():
     for i, entry in enumerate(os.listdir(constant.PATH)):

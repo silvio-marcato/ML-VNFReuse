@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from sklearn.tree import plot_tree
 
 def plot_clf(clf, title, x_train, y_train):
@@ -28,4 +29,26 @@ def my_plot_tree(clf_tree):
     label_list = ['0', '1', '2', '3']
     plt.figure()
     plot_tree(clf_tree, class_names=label_list, feature_names=features_list, filled=True)
+    plt.show()
+
+def plot_histogram(path):
+    index = ['Low rates', 'High rates'] # index to change according to what are you plotting, all columns require 4 values
+    #index = ['Conf. 0', 'Conf. 1', 'Conf. 2', 'Conf. 3']
+    df = pd.read_csv('results_sharing_low.csv')
+    df2 = pd.read_csv('results_sharing_high.csv')
+
+    vcpu_perbin1 = df[['n_vcpu', 'bin_conf']]
+    vcpu_perbin2 = df2[['n_vcpu', 'bin_conf']]
+
+    df = pd.DataFrame({
+        'Sharing approach': vcpu_perbin1['n_vcpu'].tolist(),
+        'No-sharing approach': vcpu_perbin2['n_vcpu'].tolist()
+    },
+    index=index)
+    # df = pd.DataFrame({
+    #     'Latency class configurations': vcpu_perbin['n_vcpu'].tolist()
+    # },
+    # index=index)
+    df.plot.bar(rot=0, width=0.35)
+    plt.ylabel("Average number of virtual cores used")
     plt.show()
