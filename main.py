@@ -11,10 +11,11 @@ import plots
 # f.save_pruned(pruned_df, header=True)
 
 
-f.train_model(constant.PRUNED_PATH)
+# f.train_model()
 
-#plots.plot_histogram(constant.PLOT_PATH)
+plots.plot_vnfs_inst()
+plots.plot_histogram(constant.PLOT_PATH)
 
-#f.count_bins(constant.PRUNED_PATH)
+# f.count_bins(constant.PRUNED_PATH)
 # rf = joblib.load('rf_mod-e.sav')
 # print(rf.best_params_)

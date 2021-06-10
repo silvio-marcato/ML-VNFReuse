@@ -16,9 +16,7 @@ from sklearn.model_selection import cross_val_score, GridSearchCV, train_test_sp
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
 from sklearn.metrics import classification_report, accuracy_score, plot_roc_curve
 
-def read_dataset(ds_path):
-    df = pd.read_csv(ds_path)
-    return df
+
 
 def prune_dataset(df):
     grouped = df.groupby(df.context)
@@ -43,10 +41,14 @@ def prune_dataset(df):
 def save_pruned(df_to_save, header=False):
     df_to_save.to_csv(constant.PRUNED_PATH_TEST, mode='a', columns=constant.COLUMNS_PRUNED, index=False, header=header)
 
-def train_model(pruned_df_path):
+def read_dataset(ds_path):
+    df = pd.read_csv(ds_path)
+    return df
+
+def train_model():
 
     #Read train set and apply rounding to average number of instances (we work with integers)
-    pruned_df = read_dataset(pruned_df_path)    
+    pruned_df = read_dataset(constant.PRUNED_PATH)    
     x_train = pruned_df[constant.TRAIN_COLUMNS]
     y_train = pruned_df[constant.CLASS_LABEL].values
 
@@ -54,27 +56,29 @@ def train_model(pruned_df_path):
         x_train[n_inst] = x_train[n_inst].apply(np.around)
     
     #Read test set and apply rounding
-    test_df = read_dataset(constant.PRUNED_PATH_TEST)
-    x_test = test_df[constant.TRAIN_COLUMNS]
-    y_test = test_df[constant.CLASS_LABEL].values
+    #x_train, x_test, y_train, y_test = train_test_split(x_train, y_train, test_size = 0.33, random_state=42)
+    # test_df = read_dataset(constant.PRUNED_PATH_TEST)
+    # x_test = test_df[constant.TRAIN_COLUMNS]
+    # y_test = test_df[constant.CLASS_LABEL].values
 
-    for n_inst in x_test:
-        x_test[n_inst] = x_test[n_inst].apply(np.around)
+    # for n_inst in x_test:
+    #     x_test[n_inst] = x_test[n_inst].apply(np.around)
     
     #Oversampling
-    oversample = RandomOverSampler(sampling_strategy='minority')
-    x_train, y_train = oversample.fit_resample(x_train, y_train)
+    # oversample = RandomOverSampler(sampling_strategy='minority')
+    # x_train, y_train = oversample.fit_resample(x_train, y_train)
 
     #Normalizing
-    scaler = StandardScaler()
-    x_normalize = scaler.fit_transform(x_train)
-    x_normalize_test = scaler.transform(x_test) #not fit because we fit on the training
-    # x_normalize = x_train
-    # x_normalize_test = x_test
+    # scaler = StandardScaler()
+    # x_normalize = scaler.fit_transform(x_train)
+    # x_normalize_test = scaler.transform(x_test) #not fit because we fit on the training
+    x_normalize = x_train
+    x_normalize_test = x_train
+    y_test=y_train
  
-
-    clf5 = GridSearchCV(RandomForestClassifier(random_state=0), hyperF, cv=10, scoring='accuracy', n_jobs=-1)
-    #clf5 = RandomForestClassifier(random_state=0, n_estimators=200, max_depth=9, min_samples_split=2, min_samples_leaf=1, n_jobs=-1)
+    #Random Forest
+    #clf5 = GridSearchCV(RandomForestClassifier(random_state=0), constant.RF_PARAMS, cv=10, scoring='accuracy', n_jobs=-1)
+    clf5 = RandomForestClassifier(random_state=0, n_estimators=200, max_depth=9, min_samples_split=2, min_samples_leaf=1, n_jobs=-1)
     results5 = cross_val_score(clf5, x_normalize, y_train, cv=10, scoring='accuracy')
     print("Accuracy Random Forest: "+str(results5.mean()))
     clf5.fit(x_normalize, y_train)
@@ -84,8 +88,9 @@ def train_model(pruned_df_path):
     joblib.dump(clf5, filename5)
     print(clf5.best_params_)
 
-    clf = GridSearchCV(DecisionTreeClassifier(random_state=0), tree_parameters, cv=10, scoring='accuracy', n_jobs=-1)
-    #clf = DecisionTreeClassifier(random_state=0, criterion='entropy', max_depth=5, min_samples_split=2, min_samples_leaf=1)
+    #Decision Tree
+    #clf = GridSearchCV(DecisionTreeClassifier(random_state=0), constant.TREE_PARAMS, cv=10, scoring='accuracy', n_jobs=-1)
+    clf = DecisionTreeClassifier(random_state=0, criterion='entropy', max_depth=5, min_samples_split=2, min_samples_leaf=1)
     results = cross_val_score(clf, x_normalize, y_train, cv=10, scoring='accuracy')
     print("Accuracy Decision Tree: "+str(results.mean()))
     clf.fit(x_normalize, y_train)
@@ -96,8 +101,9 @@ def train_model(pruned_df_path):
     print(clf.best_params_)
     #plots.my_plot_tree(clf)
 
-    clf2 = GridSearchCV(SVC(random_state=0), svc_parameters, cv=10, scoring='accuracy', n_jobs=-1)
-    #clf2 = SVC(random_state=0, C=100, gamma=0.001)
+    #Support Vector
+    #clf2 = GridSearchCV(SVC(random_state=0), constant.SVC_PARAMS, cv=10, scoring='accuracy', n_jobs=-1)
+    clf2 = SVC(random_state=0, C=100, gamma=0.001)
     results2 = cross_val_score(clf2, x_normalize, y_train, cv=10, scoring ='accuracy')
     print("Accuracy SVC: "+str(results2.mean()))
     clf2.fit(x_normalize, y_train)
@@ -107,8 +113,9 @@ def train_model(pruned_df_path):
     joblib.dump(clf2, filename2)
     print(clf2.best_params_)
 
-    clf4 = GridSearchCV(KNeighborsClassifier(), knn_parameters, cv=10, scoring='accuracy', n_jobs=-1)
-    #clf4 = KNeighborsClassifier(n_neighbors=3, weights='distance', n_jobs=-1)
+    #K-Nearest Neighbors
+    #clf4 = GridSearchCV(KNeighborsClassifier(), constant.KNN_PARAMS, cv=10, scoring='accuracy', n_jobs=-1)
+    clf4 = KNeighborsClassifier(n_neighbors=3, weights='distance', n_jobs=-1)
     results4 = cross_val_score(clf4, x_normalize, y_train, cv=10, scoring = 'accuracy')
     print("Accuracy KNN: "+str(results4.mean()))
     clf4.fit(x_normalize, y_train)
